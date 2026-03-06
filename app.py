@@ -110,6 +110,38 @@ def save_to_supabase(df: pd.DataFrame, table: str, conflict: str) -> None:
     sb.table(table).upsert(records, on_conflict=conflict).execute()
 
 
+# ─── Запуск GitHub Actions при отсутствии данных ─────────────────────────────
+def trigger_github_actions() -> bool:
+    """
+    Запускает workflow parse.yml через GitHub API (workflow_dispatch).
+    Возвращает True если запрос отправлен успешно.
+    """
+    import requests
+    token = os.environ.get("GITHUB_TOKEN")
+    repo  = os.environ.get("GITHUB_REPO")   # "username/repo-name"
+
+    if not token or not repo:
+        log.warning("GITHUB_TOKEN или GITHUB_REPO не заданы — автозапуск недоступен")
+        return False
+
+    url = f"https://api.github.com/repos/{repo}/actions/workflows/parse.yml/dispatches"
+    resp = requests.post(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+        },
+        json={"ref": "main"},
+        timeout=10,
+    )
+    success = resp.status_code == 204
+    if success:
+        log.info("✅ GitHub Actions workflow запущен")
+    else:
+        log.error(f"❌ GitHub Actions: {resp.status_code} {resp.text}")
+    return success
+
+
 # ─── Загрузка данных (кэш 5 минут) ───────────────────────────────────────────
 @st.cache_data(ttl=300, show_spinner=False)
 def load_exchange() -> tuple[pd.DataFrame, list[str]]:
@@ -119,8 +151,7 @@ def load_exchange() -> tuple[pd.DataFrame, list[str]]:
         df = fetch_exchange_today()
         return df, errors
     else:
-        # Данных за сегодня ещё нет — GitHub Actions обновит в 08:00 и 16:00 по Бишкеку
-        return pd.DataFrame(), ["⏳ Данные за сегодня ещё не загружены. Обновление происходит автоматически в 08:00 и 16:00 по Бишкеку."]
+        return pd.DataFrame(), []
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -155,7 +186,30 @@ if failed:
             st.warning(e)
 
 if df.empty:
-    st.error("Нет данных за сегодня. Попробуйте нажать «Обновить данные».")
+    # Автоматически запускаем парсинг через GitHub Actions
+    if "gh_triggered" not in st.session_state:
+        st.session_state["gh_triggered"] = False
+
+    if not st.session_state["gh_triggered"]:
+        with st.spinner("⚙️ Данных за сегодня нет — запускаю парсинг автоматически…"):
+            ok = trigger_github_actions()
+            st.session_state["gh_triggered"] = True
+        if ok:
+            st.info(
+                "✅ Парсинг запущен! Данные появятся через **2–5 минут**. "
+                "Нажмите **«Обновить данные»** в боковой панели когда они будут готовы.",
+                icon="🚀",
+            )
+        else:
+            st.warning(
+                "⚠️ Не удалось запустить автопарсинг. "
+                "Проверьте что в Streamlit Secrets заданы **GITHUB_TOKEN** и **GITHUB_REPO**.",
+            )
+    else:
+        st.info(
+            "⏳ Парсинг уже запущен. Данные появятся через **2–5 минут**. "
+            "Нажмите **«Обновить данные»** для проверки.",
+        )
     st.stop()
 
 # ─── Фильтры ──────────────────────────────────────────────────────────────────
