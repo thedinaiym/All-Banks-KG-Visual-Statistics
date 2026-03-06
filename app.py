@@ -110,34 +110,6 @@ def save_to_supabase(df: pd.DataFrame, table: str, conflict: str) -> None:
     sb.table(table).upsert(records, on_conflict=conflict).execute()
 
 
-# ─── Парсинг (fallback, если нет данных за сегодня) ──────────────────────────
-def run_parsers_and_save() -> tuple[pd.DataFrame, list[str]]:
-    """
-    Импортируем scheduler.job логику прямо здесь,
-    чтобы не дублировать код.
-    """
-    # Импортируем функции из scheduler (он лежит рядом)
-    try:
-        from scheduler import run_currency_parsers, run_gold_parsers, GOLD_TYPES
-    except ImportError:
-        st.error("Не удалось импортировать scheduler.py — убедитесь, что он в той же папке.")
-        return pd.DataFrame(), ["Ошибка импорта scheduler"]
-
-    today = today_str()
-    cur_df, gold_from_banks, errors = run_currency_parsers(today)
-    gold_df = run_gold_parsers(today)
-
-    all_gold = pd.concat(
-        [df for df in [gold_df, gold_from_banks] if not df.empty],
-        ignore_index=True,
-    )
-
-    save_to_supabase(cur_df,   "exchange_rates", "bank_name,type,item,date")
-    save_to_supabase(all_gold, "gold_rates",     "bank_name,item,date")
-
-    return cur_df, errors
-
-
 # ─── Загрузка данных (кэш 5 минут) ───────────────────────────────────────────
 @st.cache_data(ttl=300, show_spinner=False)
 def load_exchange() -> tuple[pd.DataFrame, list[str]]:
@@ -147,9 +119,8 @@ def load_exchange() -> tuple[pd.DataFrame, list[str]]:
         df = fetch_exchange_today()
         return df, errors
     else:
-        # Данных нет — парсим сейчас
-        df, errors = run_parsers_and_save()
-        return df, errors
+        # Данных за сегодня ещё нет — GitHub Actions обновит в 08:00 и 16:00 по Бишкеку
+        return pd.DataFrame(), ["⏳ Данные за сегодня ещё не загружены. Обновление происходит автоматически в 08:00 и 16:00 по Бишкеку."]
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
