@@ -22,7 +22,6 @@ def dcb(url='https://www.dcb.kg/ru/'):
         
         driver.get(url)
         
-        # Ждем, пока загрузится блок с валютами
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CLASS_NAME, 'grid-currency'))
         )
@@ -32,18 +31,14 @@ def dcb(url='https://www.dcb.kg/ru/'):
         
         def extract_data(html, rate_type):
             soup = BeautifulSoup(html, 'html.parser')
-            # Ищем контейнер с валютами
             container = soup.find('div', id='regular-currency-container')
             if not container:
                 return
                 
-            # Ищем все строки с ценами
             rows = container.find_all('div', class_='grid-currency grid-price')
             for row in rows:
                 items = row.find_all('div', class_='grid-item')
-                # Проверяем, что есть все три колонки: Валюта, Покупка, Продажа
                 if len(items) >= 3:
-                    # get_text(strip=True) вытягивает текст даже если стоит display: none
                     currency = items[0].get_text(strip=True)
                     buy = items[1].get_text(strip=True)
                     sell = items[2].get_text(strip=True)
@@ -58,20 +53,15 @@ def dcb(url='https://www.dcb.kg/ru/'):
                             'date': today
                         })
 
-        # 1. Наличные (открыты по умолчанию)
         extract_data(driver.page_source, 'Наличный')
         
-        # 2. Кликаем на вкладку "Безналичный"
         try:
             beznal_tab = driver.find_element(By.ID, 'exchange-tab-2')
-            # Скроллим до элемента, чтобы клик точно прошел
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", beznal_tab)
             time.sleep(0.5)
-            # Кликаем через JS
             driver.execute_script("arguments[0].click();", beznal_tab)
-            time.sleep(1.5) # Ждем, пока JS обновит курсы
+            time.sleep(1.5) 
             
-            # Парсим безналичные
             extract_data(driver.page_source, 'Безналичный')
         except Exception as e:
             print(f"DCB Tab switch error: {e}")
@@ -80,7 +70,6 @@ def dcb(url='https://www.dcb.kg/ru/'):
         
         df = pd.DataFrame(all_data)
         if not df.empty:
-            # Очищаем данные и превращаем их во float
             df['buy'] = pd.to_numeric(df['buy'].astype(str).str.replace(' ', '').str.replace(',', '.'), errors='coerce')
             df['sell'] = pd.to_numeric(df['sell'].astype(str).str.replace(' ', '').str.replace(',', '.'), errors='coerce')
             df = df.dropna(subset=['buy', 'sell'])
@@ -91,7 +80,6 @@ def dcb(url='https://www.dcb.kg/ru/'):
         print(f"DCB Error: {e}")
         return pd.DataFrame()
 
-# Блок для отдельной проверки скрипта
 if __name__ == '__main__':
     print("Собираем данные Дос-Кредобанка...")
     print(dcb())

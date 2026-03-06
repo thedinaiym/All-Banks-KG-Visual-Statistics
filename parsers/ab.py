@@ -24,8 +24,6 @@ def bank_asia(url='https://www.ab.kg/'):
         all_data = []
         today = datetime.now().strftime('%Y-%m-%d')
 
-        # 1. Парсим ВАЛЮТЫ (Наличные, Безналичные, НБКР)
-        # Находим табы в левой части
         currency_tabs = driver.find_elements(By.CSS_SELECTOR, ".course__left .tabs-descr__caption li")
         currency_contents = driver.find_elements(By.CSS_SELECTOR, ".course__left .tabs-descr__content")
         
@@ -33,9 +31,8 @@ def bank_asia(url='https://www.ab.kg/'):
 
         for i in range(len(tab_names)):
             try:
-                # Кликаем по табу
                 driver.execute_script("arguments[0].click();", currency_tabs[i])
-                time.sleep(1) # Ждем анимацию переключения
+                time.sleep(1) 
                 
                 soup = BeautifulSoup(currency_contents[i].get_attribute('innerHTML'), 'html.parser')
                 table = soup.find('table', class_='course__table')
@@ -45,7 +42,6 @@ def bank_asia(url='https://www.ab.kg/'):
                 for row in rows:
                     cols = row.find_all('td')
                     if len(cols) >= 3:
-                        # Извлекаем код валюты (USD, EUR...)
                         currency = row.find('span', class_='course__name').get_text(strip=True)
                         buy = cols[1].get_text(strip=True)
                         sell = cols[2].get_text(strip=True)
@@ -61,9 +57,7 @@ def bank_asia(url='https://www.ab.kg/'):
             except Exception as e:
                 print(f"Aiyl Bank Currency Tab {i} Error: {e}")
 
-        # 2. Парсим МЕТАЛЛЫ
         try:
-            # Находим секцию металлов (правая колонка)
             metal_content = driver.find_element(By.CSS_SELECTOR, ".course__right .tabs-descr__content.act")
             soup_metals = BeautifulSoup(metal_content.get_attribute('innerHTML'), 'html.parser')
             metal_table = soup_metals.find('table', class_='course__table')
@@ -92,7 +86,6 @@ def bank_asia(url='https://www.ab.kg/'):
         
         df = pd.DataFrame(all_data)
         if not df.empty:
-            # Чистим числа (убираем пробелы, меняем запятые)
             for col in ['buy', 'sell']:
                 df[col] = df[col].astype(str).str.replace(r'\s+', '', regex=True).str.replace(',', '.')
                 df[col] = pd.to_numeric(df[col], errors='coerce')
