@@ -37,5 +37,5 @@ jobs:
       - name: Run parser
         env:
           Project_URL:        ${{ secrets.SUPABASE_URL }}
-          Publishable_API_Key: ${{ secrets.SUPABASE_KEY }}
+          Publishable_API_Key: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scheduler.py --once
