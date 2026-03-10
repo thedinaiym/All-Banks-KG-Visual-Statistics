@@ -1,5 +1,8 @@
 # 🇰🇬 Kyrgyz Republic Commercial Banks Exchange Rates Monitoring
 
+[![Live Dashboard](https://img.shields.io/badge/Live_Dashboard-Streamlit-FF4B4B?style=for-the-badge&logo=streamlit)](https://all-banks-visual-statistics-kg.streamlit.app/)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github)](https://github.com/thedinaiym/All-Banks-KG-Visual-Statistics)
+
 An interactive dashboard and automated parsing system for tracking exchange rates and precious metals across commercial banks in Kyrgyzstan.
 
 The project consists of a web interface based on **Streamlit** and a parser script that collects data from the official websites of over 20 banks, the National Bank of the Kyrgyz Republic (NBKR), and "Kyrgyzaltyn" (gold bars), saving it to a **Supabase** (PostgreSQL) database.
@@ -35,5 +38,5 @@ The project consists of a web interface based on **Streamlit** and a parser scri
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/thedinaiym/All-Banks-KG-Visual-Statistics
-All-Banks-KG-Visual-Statistics
+git clone [https://github.com/thedinaiym/All-Banks-KG-Visual-Statistics.git](https://github.com/thedinaiym/All-Banks-KG-Visual-Statistics.git)
+cd All-Banks-KG-Visual-Statistics
