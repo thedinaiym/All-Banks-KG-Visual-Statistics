@@ -3,7 +3,7 @@ scheduler.py — Парсер курсов валют банков КР → Supa
 
 Использование:
   python scheduler.py           # однократный запуск (GitHub Actions)
-  python scheduler.py --daemon  # режим демона, 08:00 и 16:00
+  python scheduler.py --daemon  # режим демона, каждые 30 минут
 
 SQL для Supabase (выполнить один раз):
 ─────────────────────────────────────────────────────────────────────
@@ -298,11 +298,10 @@ if __name__ == "__main__":
         # GitHub Actions: однократный запуск
         job()
     elif mode == "--daemon":
-        # Сервер: запуск по расписанию (08:00 и 16:00 по Бишкеку UTC+6)
-        log.info("Планировщик запущен. Расписание: 08:00 и 16:00")
+        # Сервер: запуск по расписанию (каждые 30 минут)
+        log.info("Планировщик запущен. Расписание: каждые 30 минут")
         job()                                      # сразу при старте
-        schedule.every().day.at("08:00").do(job)
-        schedule.every().day.at("16:00").do(job)
+        schedule.every(30).minutes.do(job)
         while True:
             schedule.run_pending()
             time.sleep(60)
