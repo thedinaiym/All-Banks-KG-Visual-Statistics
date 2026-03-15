@@ -113,7 +113,7 @@ with tab1:
         st.warning("⚠️ Данных по курсам валют за сегодня еще нет.")
     else:
         # Фильтры
-        col_type, col_curr = st.columns 2)
+        col_type, col_curr = st.columns(2)
         with col_type:
             types = sorted(df_rates["type"].dropna().unique().tolist())
             selected_type = st.selectbox("Тип операции", types, index=0 if "Безналичный" not in types else types.index("Безналичный"))
