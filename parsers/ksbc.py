@@ -41,7 +41,7 @@ def ksbc(url='https://ksbc.kg/'):
         all_data = []
         today = datetime.now().strftime('%Y-%m-%d')
         
-        # Внутренняя функция
+        # Внутренняя функция для обычных валют
         def parse_table(table, rate_type):
             # Ищем сразу 'tr', без 'tbody' — так надежнее, избегаем ошибок NoneType
             rows = table.find_all('tr')[1:] 
@@ -71,11 +71,40 @@ def ksbc(url='https://ksbc.kg/'):
         # Вторая таблица — Безналичные
         if len(tables) >= 2:
             parse_table(tables[1], 'Безналичный')
+
+        # Поиск и парсинг таблицы с золотом (Слитки)
+        for table in tables:
+            # Ищем заголовки таблицы, чтобы понять, что это металлы
+            headers = [th.get_text(strip=True).lower() for th in table.find_all('th')]
+            if any('вес' in h or 'грамм' in h for h in headers):
+                rows = table.find_all('tr')[1:]
+                for row in rows:
+                    cols = row.find_all('td')
+                    if len(cols) >= 3:
+                        weight_text = cols[0].get_text(strip=True) # например, "1 гр.", "31,1035 гр."
+                        buy = cols[1].get_text(strip=True)
+                        sell = cols[2].get_text(strip=True)
+                        
+                        if not buy or not sell or buy == '-' or sell == '-':
+                            continue
+                            
+                        item_name = f"Золото {weight_text}"
+                        
+                        all_data.append({
+                            'bank_name': 'КСБ Банк',
+                            'type': 'Золото', # Помечаем тип, чтобы отправить в нужную таблицу БД
+                            'currency': item_name,
+                            'buy': buy,
+                            'sell': sell,
+                            'date': today
+                        })
+                break # Таблица с золотом найдена и распарсена, остальные можно не смотреть
             
         df = pd.DataFrame(all_data)
         if not df.empty:
-            df['buy'] = pd.to_numeric(df['buy'].astype(str).str.replace(' ', '').str.replace(',', '.'), errors='coerce')
-            df['sell'] = pd.to_numeric(df['sell'].astype(str).str.replace(' ', '').str.replace(',', '.'), errors='coerce')
+            # Используем regex=True для \s+ чтобы надежно удалять неразрывные пробелы
+            df['buy'] = pd.to_numeric(df['buy'].astype(str).str.replace(r'\s+', '', regex=True).str.replace(',', '.'), errors='coerce')
+            df['sell'] = pd.to_numeric(df['sell'].astype(str).str.replace(r'\s+', '', regex=True).str.replace(',', '.'), errors='coerce')
             df = df.dropna(subset=['buy', 'sell'])
             
         return df[['bank_name', 'type', 'currency', 'buy', 'sell', 'date']]

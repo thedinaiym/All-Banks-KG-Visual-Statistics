@@ -47,11 +47,21 @@ def eldik(url='https://eldik.kg/'):
             for row in rows:
                 cols = row.find_all('td')
                 if len(cols) >= 3:
-                    # Валюта в первой колонке (текст вместе с SVG картинкой, берем только текст)
-                    currency = cols[0].get_text(strip=True)
-                    # Покупка и продажа
+                    # Валюта/Вес в первой колонке
+                    raw_name = cols[0].get_text(strip=True)
                     buy = cols[1].get_text(strip=True)
                     sell = cols[2].get_text(strip=True)
+                    
+                    # Если вкладка Золото, то raw_name — это вес (например, "1.0000")
+                    if rate_type == 'Золото':
+                        try:
+                            weight_float = float(raw_name)
+                            # Форматируем в строку "Золото 1 гр." или "Золото 31.1035 гр."
+                            currency = f"Золото {weight_float:g} гр."
+                        except ValueError:
+                            currency = f"Золото {raw_name}"
+                    else:
+                        currency = raw_name
                     
                     if currency and buy and sell:
                         all_data.append({
@@ -62,23 +72,29 @@ def eldik(url='https://eldik.kg/'):
                             'sell': sell,
                             'date': today
                         })
+
+        # Вспомогательная функция для переключения вкладок
+        def click_tab(tab_text):
+            tabs = driver.find_elements(By.XPATH, f"//li[contains(text(), '{tab_text}')]")
+            for tab in tabs:
+                if tab.is_displayed():
+                    # Прокручиваем до элемента на всякий случай и кликаем
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", tab)
+                    time.sleep(0.5)
+                    driver.execute_script("arguments[0].click();", tab)
+                    time.sleep(1.5) # Ждем, пока React подгрузит данные в пустой <div>
+                    break
         
         # 1. Сразу парсим "Наличные" (открыты по умолчанию при загрузке страницы)
         extract_table_data(driver.page_source, 'Наличный')
         
-        # 2. Ищем вкладку "Безналичные" (тег <li>)
-        tabs = driver.find_elements(By.XPATH, "//li[contains(text(), 'Безналичные')]")
-        for tab in tabs:
-            if tab.is_displayed():
-                # Прокручиваем до элемента на всякий случай и кликаем
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", tab)
-                time.sleep(0.5)
-                driver.execute_script("arguments[0].click();", tab)
-                time.sleep(1.5) # Ждем, пока React подгрузит данные в пустой <div>
-                break
-                
-        # 3. Парсим "Безналичные"
+        # 2. Переключаемся на "Безналичные" и парсим
+        click_tab('Безналичные')
         extract_table_data(driver.page_source, 'Безналичный')
+
+        # 3. Переключаемся на "Золото" и парсим
+        click_tab('Золото')
+        extract_table_data(driver.page_source, 'Золото')
         
         # Обязательно закрываем браузер
         driver.quit()
@@ -86,8 +102,9 @@ def eldik(url='https://eldik.kg/'):
         # Упаковываем в таблицу
         df = pd.DataFrame(all_data)
         if not df.empty:
-            df['buy'] = pd.to_numeric(df['buy'].astype(str).str.replace(' ', '').str.replace(',', '.'), errors='coerce')
-            df['sell'] = pd.to_numeric(df['sell'].astype(str).str.replace(' ', '').str.replace(',', '.'), errors='coerce')
+            # Используем регулярное выражение \s+ для надежного удаления любых пробелов
+            df['buy'] = pd.to_numeric(df['buy'].astype(str).str.replace(r'\s+', '', regex=True).str.replace(',', '.'), errors='coerce')
+            df['sell'] = pd.to_numeric(df['sell'].astype(str).str.replace(r'\s+', '', regex=True).str.replace(',', '.'), errors='coerce')
             df = df.dropna(subset=['buy', 'sell'])
             
         return df[['bank_name', 'type', 'currency', 'buy', 'sell', 'date']]

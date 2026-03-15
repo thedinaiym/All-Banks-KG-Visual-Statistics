@@ -80,6 +80,11 @@ def bakai(url='https://bakai.kg/ru/'):
                 return
 
             for row in tbody.find_all('tr'):
+                # Пропускаем строки золота (слитков), их мы спарсим отдельно
+                row_classes = row.get('class', [])
+                if row_classes and any('ingot_row' in c for c in row_classes):
+                    continue
+
                 cols = row.find_all('th')
                 if len(cols) < 3:
                     continue
@@ -105,6 +110,7 @@ def bakai(url='https://bakai.kg/ru/'):
         dropdown_element = driver.find_element(By.TAG_NAME, 'select')
         select = Select(dropdown_element)
 
+        # 1. Парсинг Валют
         for value, label in [('cash', 'Наличный'), ('non_cash', 'Безналичный')]:
             try:
                 select.select_by_value(value)
@@ -113,8 +119,41 @@ def bakai(url='https://bakai.kg/ru/'):
             except Exception as e:
                 print(f"Bakai {value} error: {e}")
 
+        # 2. Парсинг Золота (Слитки)
+        try:
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            # Ищем строки, содержащие класс CurrencyWidget_ingot_row
+            ingot_rows = soup.find_all('tr', class_=lambda c: c and 'CurrencyWidget_ingot_row' in c)
+            
+            for row in ingot_rows:
+                cols = row.find_all('th')
+                if len(cols) >= 3:
+                    weight = cols[0].get_text(strip=True)
+                    buy = cols[1].get_text(strip=True)
+                    sell = cols[2].get_text(strip=True)
+
+                    # Форматируем название (например, "1.0000" превращаем в "Золото 1 гр.")
+                    try:
+                        weight_float = float(weight)
+                        item_name = f"Золото {weight_float:g} гр."
+                    except ValueError:
+                        item_name = f"Золото {weight}"
+
+                    if buy and sell:
+                        all_data.append({
+                            'bank_name': 'Бакай',
+                            'type': 'Золото', # Scheduler поймает это слово и отправит в gold_rates
+                            'currency': item_name,
+                            'buy': buy,
+                            'sell': sell,
+                            'date': today,
+                        })
+        except Exception as e:
+            print(f"Bakai Gold error: {e}")
+
         driver.quit()
 
+        # 3. Финализация DataFrame
         df = pd.DataFrame(all_data)
         if not df.empty:
             df['buy']  = pd.to_numeric(df['buy'].astype(str).str.replace(r'\s+', '', regex=True).str.replace(',', '.'), errors='coerce')
