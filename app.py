@@ -70,10 +70,19 @@ def fmt_bank(b: str) -> str:
 
 @st.cache_data(ttl=600)
 def load_current_data(table_name: str) -> pd.DataFrame:
-    """Загружает данные за сегодня из указанной таблицы."""
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    res = sb.table(table_name).select("*").eq("date", today_str).execute()
+    """Загружает данные за самую последнюю доступную дату из таблицы."""
+    # 1. Сначала узнаем самую свежую дату, которая вообще есть в таблице
+    res_date = sb.table(table_name).select("date").order("date", desc=True).limit(1).execute()
+    
+    if not res_date.data:
+        return pd.DataFrame() # Если таблица вообще пустая
+        
+    latest_date = res_date.data[0]["date"]
+    
+    # 2. Загружаем все данные именно за эту последнюю дату
+    res = sb.table(table_name).select("*").eq("date", latest_date).execute()
     df = pd.DataFrame(res.data)
+    
     if not df.empty:
         # Приводим числовые колонки к float
         for col in ["buy", "sell"]:
