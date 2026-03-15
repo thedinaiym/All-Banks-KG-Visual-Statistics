@@ -1,9 +1,16 @@
 name: Parse Bank Rates
 
 on:
-  # Запуск каждые 30 минут с 08:00 до 18:00 по Бишкеку (с 02:00 до 12:00 по UTC)
+  # Запуск при каждом git push в ветку main
+  push:
+    branches:
+      - main
+      
   schedule:
+    # Запуск каждые 30 минут с 08:00 до 18:00 по Бишкеку (с 02:00 до 12:00 по UTC)
     - cron: '*/30 2-12 * * *'
+    # Конец дня: перенос в историю и очистка в 23:50 по Бишкеку (17:50 по UTC)
+    - cron: '50 17 * * *'
 
   # Ручной запуск из интерфейса GitHub
   workflow_dispatch:
@@ -28,12 +35,23 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q google-chrome-stable
           google-chrome --version
-
+          
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Run parser
+      - name: Run script
         env:
-          Project_URL:        ${{ secrets.SUPABASE_URL }}
+          Project_URL: ${{ secrets.SUPABASE_URL }}
           Publishable_API_Key: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scheduler.py --once
+        run: |
+          # Проверяем текущее время (в UTC). Если это 17:50 - запускаем конец дня.
+          # Иначе - запускаем обычный парсер.
+          HOUR=$(date +'%H')
+          MINUTE=$(date +'%M')
+          if [ "$HOUR" == "17" ] && [ "$MINUTE" == "50" ]; then
+            echo "Время 17:50 UTC. Запускаем перенос истории (end_of_day.py)..."
+            python end_of_day.py
+          else
+            echo "Запускаем парсер (scheduler.py)..."
+            python scheduler.py --once
+          fi
